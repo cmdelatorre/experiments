@@ -1,2 +1,3 @@
-# experiments
-General purpose repo
+# Fractals
+
+Experimentos para tesis de Ro
