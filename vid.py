@@ -3,24 +3,25 @@ import cv2
 import os
 
 cap = cv2.VideoCapture(0)
-FRAME_HEIGHT = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-FRAME_WIDTH = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#FRAME_WIDTH = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+FRAME_WIDTH = 600  # Tamano de las imgs de hoy
 
 # Load all the images in the 'img/' directory and crop to 640x480
 bg_images = []
 for bg_image_fname in os.listdir('img'):
     bg_image = cv2.imread(os.path.join('img', bg_image_fname))
-    # d = bg_image.shape[0]
-    # m = d/2
-    # h = FRAME_HEIGHT
-    # w = FRAME_WIDTH
-    # bg_image = bg_image[m-(h/2):m+(h/2), m-(w/2):m+(w/2)]
+    d = bg_image.shape[0]
+    m = d/2
+    h = FRAME_HEIGHT
+    w = FRAME_WIDTH
+    bg_image = bg_image[m-(h/2):m+(h/2), m-(w/2):m+(w/2)]
     bg_images.append(bg_image)
 
 image_index = 0
 step = +1
 step_delay = 0
-delay_factor = 5
+delay_factor = 1
 def get_current_image():
     global image_index, step, step_delay
     if image_index == 0:
@@ -36,9 +37,11 @@ def get_current_image():
 
 out = None
 # Define the codec and create VideoWriter object
-# fourcc = cv2.VideoWriter_fourcc(*'XVID')
-# out = cv2.VideoWriter('output.avi', fourcc, 20.0, (FRAME_WIDTH, FRAME_HEIGHT))
-
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+original_out = cv2.VideoWriter('original.avi', fourcc, 20.0, (FRAME_WIDTH, FRAME_HEIGHT))
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+transformed_out = cv2.VideoWriter('fractalized.avi', fourcc, 20.0, (FRAME_WIDTH, FRAME_HEIGHT))
+out = True
 
 # define range of blue color in HSV
 color_low = np.array([160, 80, 80])
@@ -65,6 +68,7 @@ cv2.createTrackbar('Upper V', 'controls', color_high[2], 255, set_val_factory(co
 while(True):
     # Capture frame-by-frame
     ret, frame = cap.read()
+    frame = frame[:, : 600, :]
 
     # Convert BGR to HSV
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -88,7 +92,9 @@ while(True):
 
     result = cv2.add(masked_frame, masked_bg)
     cv2.imshow('transformed', result)
-    if out: out.write(result)
+    if out:
+        original_out.write(frame)
+        transformed_out.write(result)
 
     cv2.imshow('image', frame)
     if cv2.waitKey(10) & 0xFF == ord('q'):
@@ -97,5 +103,8 @@ while(True):
 
 # When everything done, release the capture
 cap.release()
-if out: out.release()
+if out:
+    original_out.release()
+    transformed_out.release()
+
 cv2.destroyAllWindows()
