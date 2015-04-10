@@ -4,6 +4,10 @@ import cv2
 import os
 import sys
 
+from collections import namedtuple
+
+MaskMode = namedtuple('MaskMode', ('low', 'high'))
+
 config = {
     'frame_width': 1600,
     'frame_height': 900,
@@ -13,11 +17,7 @@ config = {
     'show_controls': True,
     'save_image': False,
     'save_result': False,
-    'mode_A_low': np.array([0, 0, 56]),
-    'mode_A_high': np.array([24, 161, 255]),
-    'mode_B_low': np.array([62, 84, 36]),
-    'mode_B_high': np.array([179, 255, 255]),
-    'morph_transform_mask': None,  #(cv2.MORPH_CLOSE, np.ones((5,5), np.uint8)),
+    'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5,5), np.uint8)),
 }
 
 cap = cv2.VideoCapture(0)
@@ -83,18 +83,10 @@ if config['save_result']:
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     transformed_out = cv2.VideoWriter('fractalized.avi', fourcc, 20.0, (FRAME_WIDTH, FRAME_HEIGHT))
 
-
-# Acá defino dos rangos (low,high), A y B.
-# Con el boton de switch activo uno o el otro seteo.
-A_low = config['mode_A_low']
-A_high = config['mode_A_high']
-
-B_low = config['mode_B_low']
-B_high = config['mode_B_high']
-
 # Estas variables de acá definen el rango actual en cada momento.
-color_low = A_low
-color_high = A_high
+color_mode = MaskMode(low=np.array([0, 0, 56]), high=np.array([24, 161, 255]))
+
+invert_mode = False
 
 if config['show_controls']:
     # Acá dibujo los controles en una ventanita.
@@ -105,31 +97,22 @@ if config['show_controls']:
             arr[i] = x
         return set_val
 
-    cv2.createTrackbar('Lower H', 'controls', color_low[0], 179, set_val_factory(color_low, 0))
-    cv2.createTrackbar('Lower S', 'controls', color_low[1], 255, set_val_factory(color_low, 1))
-    cv2.createTrackbar('Lower V', 'controls', color_low[2], 255, set_val_factory(color_low, 2))
+    cv2.createTrackbar('Lower H', 'controls', color_mode.low[0], 179, set_val_factory(color_mode.low, 0))
+    cv2.createTrackbar('Lower S', 'controls', color_mode.low[1], 255, set_val_factory(color_mode.low, 1))
+    cv2.createTrackbar('Lower V', 'controls', color_mode.low[2], 255, set_val_factory(color_mode.low, 2))
 
-    cv2.createTrackbar('Upper H', 'controls', color_high[0], 179, set_val_factory(color_high, 0))
-    cv2.createTrackbar('Upper S', 'controls', color_high[1], 255, set_val_factory(color_high, 1))
-    cv2.createTrackbar('Upper V', 'controls', color_high[2], 255, set_val_factory(color_high, 2))
+    cv2.createTrackbar('Upper H', 'controls', color_mode.high[0], 179, set_val_factory(color_mode.high, 0))
+    cv2.createTrackbar('Upper S', 'controls', color_mode.high[1], 255, set_val_factory(color_mode.high, 1))
+    cv2.createTrackbar('Upper V', 'controls', color_mode.high[2], 255, set_val_factory(color_mode.high, 2))
 
 
     def switch_toggle(x):
-        global A_low, A_high, B_low, B_high
+        global invert_mode
         if x == 0:
-            color_low = A_low
-            color_high = A_high
+            invert_mode = False
         else:
-            color_low = B_low
-            color_high = B_high
-
-        cv2.setTrackbarPos('Lower H', 'controls', color_low[0])
-        cv2.setTrackbarPos('Lower S', 'controls', color_low[1])
-        cv2.setTrackbarPos('Lower V', 'controls', color_low[2])
-
-        cv2.setTrackbarPos('Upper H', 'controls', color_high[0])
-        cv2.setTrackbarPos('Upper S', 'controls', color_high[1])
-        cv2.setTrackbarPos('Upper V', 'controls', color_high[2])
+            invert_mode = True
+        print(x, invert_mode)
 
     # create switch for ON/OFF functionality
     switch = '0 : OFF \n1 : ON'
@@ -150,7 +133,7 @@ while True:
     #    El rango actual es el valor que haya en color_low, color_high
     #    Ese rango actual va cambiando de acuerdo a los controles.
     #    Se puede cambiar el rango con otra cosa (arduino, etc)
-    mask = cv2.inRange(hsv_frame, color_low, color_high)
+    mask = cv2.inRange(hsv_frame, color_mode.low, color_mode.high)
     # Luego, aplico un filtro morfolóligo para suavizar la máscara
     morph = config['morph_transform_mask']
     if morph:
@@ -158,6 +141,12 @@ while True:
 
     # Acá creo una copia invertida de la máscara.
     inv_mask = cv2.bitwise_not(mask)
+
+    if invert_mode:
+        aux = mask
+        mask = inv_mask
+        inv_mask = aux
+
     if config['show_mask']: cv2.imshow('mask', inv_mask)  # Esto es para ver la másccara
     # Aplico la máscara invertida en el frame original (o sea, borro lo que queda dentro)
     masked_frame = cv2.bitwise_and(frame, frame, mask=inv_mask)
