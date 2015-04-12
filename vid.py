@@ -3,12 +3,15 @@ import numpy as np
 import cv2
 import os
 import sys
+import math
 
 from collections import namedtuple
 
 MaskMode = namedtuple('MaskMode', ('low', 'high'))
+Masks = namedtuple('Masks', ('normal', 'inverted'))
 
 config = {
+    'camera_id': 1,
     'frame_width': 1600,
     'frame_height': 900,
     'show_image': False,
@@ -17,17 +20,20 @@ config = {
     'show_controls': True,
     'save_image': False,
     'save_result': False,
-    'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5,5), np.uint8)),
+    'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
 }
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(config['camera_id'])
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['frame_height'])
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['frame_width'])
 FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 print(FRAME_HEIGHT, FRAME_WIDTH)
 
+# Global variable that will accum with each video frame.
+TIME = 0
 
+# Open the background video (if given)
 background_video = None
 background_n_frames = None
 if len(sys.argv) > 1:
@@ -46,6 +52,8 @@ if background_video is None:
         bg_image = cv2.imread(os.path.join('img', bg_image_fname))
         bg_images.append(cv2.resize(bg_image, (FRAME_WIDTH, FRAME_HEIGHT)))
 
+
+# Either with a background video or a list of images, choose the next one.
 image_index = 0
 step = +1
 step_delay = 0
@@ -83,9 +91,9 @@ if config['save_result']:
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     transformed_out = cv2.VideoWriter('fractalized.avi', fourcc, 20.0, (FRAME_WIDTH, FRAME_HEIGHT))
 
-# Estas variables de acá definen el rango actual en cada momento.
-color_mode = MaskMode(low=np.array([0, 0, 56]), high=np.array([24, 161, 255]))
 
+# Estas variables de acá definen el rango actual en cada momento.
+color_mode = MaskMode(low=np.array([38, 0, 0]), high=np.array([82, 255, 255]))
 invert_mode = False
 
 if config['show_controls']:
@@ -119,56 +127,64 @@ if config['show_controls']:
     cv2.createTrackbar(switch, 'controls',  0, 1, switch_toggle)
 
 
-# Loop principal. Funciona hasta que se aprieta 'q'
-# Se ejecuta todo para cada frame de video.
-while True:
-    # Acá capturo un frame de video.
-    ret, frame = cap.read()
-
-    # Creación de la máscara:
-    # Primero transformo los valores de cada píxel, cambiando de (Blue, Green, Red) a HSV
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    # Del frame transformado, creo una máscara:
-    #  - Tiene 255 en los píxeles que están dentro del rango actual. 0 en los que no.
-    #    El rango actual es el valor que haya en color_low, color_high
-    #    Ese rango actual va cambiando de acuerdo a los controles.
-    #    Se puede cambiar el rango con otra cosa (arduino, etc)
+# Del frame transformado, creo una máscara:
+#  - Tiene 255 en los píxeles que están dentro del rango actual. 0 en los que no.
+#    El rango actual es el valor que haya en color_low, color_high
+#    Ese rango actual va cambiando de acuerdo a los controles.
+#    Se puede cambiar el rango con otra cosa (arduino, etc)
+def create_masks(source_frame, color_mode):
+    # Primero transformo los valores de cada píxel,
+    # cambiando de (Blue, Green, Red) a HSV
+    hsv_frame = cv2.cvtColor(source_frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv_frame, color_mode.low, color_mode.high)
-    # Luego, aplico un filtro morfolóligo para suavizar la máscara
     morph = config['morph_transform_mask']
     if morph:
         mask = cv2.morphologyEx(mask, *morph)
 
+    x = int(200 + TIME*10) % 1500
+    y = 400 + int(400*math.sin(TIME/100.0))
+    center = (x, y)
+    radius = int(math.fabs(250*math.sin(TIME/100.0)))+1
+    cv2.circle(mask, center, radius, np.ones(3)*255, -1)
     # Acá creo una copia invertida de la máscara.
     inv_mask = cv2.bitwise_not(mask)
-
     if invert_mode:
         aux = mask
         mask = inv_mask
         inv_mask = aux
 
-    if config['show_mask']: cv2.imshow('mask', inv_mask)  # Esto es para ver la másccara
-    # Aplico la máscara invertida en el frame original (o sea, borro lo que queda dentro)
-    masked_frame = cv2.bitwise_and(frame, frame, mask=inv_mask)
+    return Masks(mask, inv_mask)
 
+# Loop principal. Funciona hasta que se aprieta 'q'
+# Se ejecuta todo para cada frame de video.
+while True:
+    # Acá capturo un frame de video.
+    frame_loaded, frame = cap.read()
+    if frame_loaded:
+        TIME += 1
+        if TIME % 50 == 0: invert_mode = not invert_mode
+        masks = create_masks(frame, color_mode)
+        if config['show_mask']: cv2.imshow('mask', masks.normal)
 
-    # Obtengo la imagen fractalica actual y aplico la máscara
-    # (o sea, dejo solo lo que queda dentro)
-    bg_image = get_current_image()
-    masked_bg = cv2.bitwise_and(bg_image, bg_image, mask=mask)
+        masked_frame = cv2.bitwise_and(frame, frame, mask=masks.inverted)
 
-    # Finalmente, sumo las dos imágenes (frame de video + fractalica)
-    result = masked_frame + masked_bg
+        # Obtengo la imagen fractalica actual y aplico la máscara
+        # (o sea, dejo solo lo que queda dentro)
+        bg_image = get_current_image()
+        masked_bg = cv2.bitwise_and(bg_image, bg_image, mask=masks.normal)
 
-    # Muestro los frames de video en sus ventanitas y grabo esos frames en archivos separados.
-    if config['show_image']: cv2.imshow('image', frame)
-    if config['show_result']: cv2.imshow('transformed', result)
-    if config['save_image']: original_out.write(frame)
-    if config['save_result']: transformed_out.write(result)
+        # Finalmente, sumo las dos imágenes (frame de video + fractalica)
+        result = masked_frame + masked_bg
 
-    # Si se aprieta 'q' sale del loop
-    if cv2.waitKey(10) & 0xFF == ord('q'):
-        break
+        # Muestro los frames de video en sus ventanitas y grabo esos frames en archivos separados.
+        if config['show_image']: cv2.imshow('image', frame)
+        if config['show_result']: cv2.imshow('transformed', result)
+        if config['save_image']: original_out.write(frame)
+        if config['save_result']: transformed_out.write(result)
+
+        # Si se aprieta 'q' sale del loop
+        if cv2.waitKey(10) & 0xFF == ord('q'):
+            break
 
 
 # When everything done, release the capture
