@@ -12,8 +12,8 @@ Masks = namedtuple('Masks', ('normal', 'inverted'))
 
 config = {
     'camera_id': 1,
-    'frame_width': 1600,
-    'frame_height': 900,
+    'frame_width': 1920,
+    'frame_height': 1080,
     'show_image': False,
     'show_mask': False,
     'show_result': True,
@@ -23,7 +23,11 @@ config = {
     'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
 }
 
-cap = cv2.VideoCapture(config['camera_id'])
+source = config['camera_id']
+if len(sys.argv) > 1:
+    source = sys.argv[1]
+
+cap = cv2.VideoCapture(source)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['frame_height'])
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['frame_width'])
 FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -33,55 +37,39 @@ print(FRAME_HEIGHT, FRAME_WIDTH)
 # Global variable that will accum with each video frame.
 TIME = 0
 
-# Open the background video (if given)
-background_video = None
-background_n_frames = None
-if len(sys.argv) > 1:
-    background_video = cv2.VideoCapture(sys.argv[1])
-    print("Backgorund video: " + sys.argv[1])
-    if not background_video.isOpened():
-        background_video = None
-        print("Unavailable backgorund video")
-    else:
-        background_n_frames = background_video.get(cv2.CAP_PROP_FRAME_COUNT)
+fungi_images = []
+for image_fname in os.listdir('fungi'):
+    bg_image = cv2.imread(os.path.join('fungi', image_fname))
+    fungi_images.append(cv2.resize(bg_image, (FRAME_WIDTH, FRAME_HEIGHT)))
 
-# If no background_video given, then load images
-bg_images = []
-if background_video is None:
-    for bg_image_fname in os.listdir('img'):
-        bg_image = cv2.imread(os.path.join('img', bg_image_fname))
-        bg_images.append(cv2.resize(bg_image, (FRAME_WIDTH, FRAME_HEIGHT)))
+quarf_images = []
+for image_fname in os.listdir('quarf'):
+    bg_image = cv2.imread(os.path.join('quarf', image_fname))
+    quarf_images.append(cv2.resize(bg_image, (FRAME_WIDTH, FRAME_HEIGHT)))
 
 
-# Either with a background video or a list of images, choose the next one.
-image_index = 0
+
 step = +1
 step_delay = 0
 delay_factor = 1
-frame_counter = 0
-def get_current_image():
-    global image_index, step, step_delay, frame_counter
 
-    if background_video is not None:
-        flag, f = background_video.read()
-        if flag:
-            current_image = f.astype(np.uint8)
-            current_image = cv2.resize(current_image, (FRAME_WIDTH, FRAME_HEIGHT))
-            frame_counter += 1
-            if frame_counter == background_n_frames:
-                frame_counter = 0 #Or whatever as long as it is the same as next line
-                background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    else:
-        if image_index == 0:
-            step = +1
-        elif image_index == len(bg_images)-1:
-            step = -1
-        current_image = bg_images[image_index]
-        step_delay = (step_delay + 1) % delay_factor
-        if step_delay == 0:
-            image_index += step
+fungi_index = 0
+def get_current_fungi():
+    global fungi_index, step, step_delay
+    current_image = fungi_images[fungi_index]
+    step_delay = (step_delay + 1) % delay_factor
+    if step_delay == 0:
+        fungi_index = (fungi_index + step) % len(fungi_images)
     return current_image
 
+quarf_index = 0
+def get_current_quarf():
+    global quarf_index, step, step_delay
+    current_image = quarf_images[quarf_index]
+    step_delay = (step_delay + 1) % delay_factor
+    if step_delay == 0:
+        quarf_index = (quarf_index + step) % len(quarf_images)
+    return current_image
 
 # Esto es para grabar los dos videos (original y tocado)
 if config['save_image']:
@@ -94,7 +82,7 @@ if config['save_result']:
 
 # Estas variables de acá definen el rango actual en cada momento.
 color_mode = MaskMode(low=np.array([38, 0, 0]), high=np.array([82, 255, 255]))
-invert_mode = False
+fractal_mode = 'fungi'  # Otra opción es quarf
 
 if config['show_controls']:
     # Acá dibujo los controles en una ventanita.
@@ -115,24 +103,19 @@ if config['show_controls']:
 
 
     def switch_toggle(x):
-        global invert_mode
+        global fractal_mode
         if x == 0:
-            invert_mode = False
+            fractal_mode = 'fungi'
         else:
-            invert_mode = True
-        print(x, invert_mode)
+            fractal_mode = 'quarf'
+        print(x, fractal_mode)
 
     # create switch for ON/OFF functionality
-    switch = '0 : OFF \n1 : ON'
+    switch = '0 : Fungi \n1 : Quarf'
     cv2.createTrackbar(switch, 'controls',  0, 1, switch_toggle)
 
 
-# Del frame transformado, creo una máscara:
-#  - Tiene 255 en los píxeles que están dentro del rango actual. 0 en los que no.
-#    El rango actual es el valor que haya en color_low, color_high
-#    Ese rango actual va cambiando de acuerdo a los controles.
-#    Se puede cambiar el rango con otra cosa (arduino, etc)
-def create_masks(source_frame, color_mode):
+def find_quarf(source_frame, color_mode):
     # Primero transformo los valores de cada píxel,
     # cambiando de (Blue, Green, Red) a HSV
     hsv_frame = cv2.cvtColor(source_frame, cv2.COLOR_BGR2HSV)
@@ -148,12 +131,21 @@ def create_masks(source_frame, color_mode):
     cv2.circle(mask, center, radius, np.ones(3)*255, -1)
     # Acá creo una copia invertida de la máscara.
     inv_mask = cv2.bitwise_not(mask)
-    if invert_mode:
+    if fractal_mode:
         aux = mask
         mask = inv_mask
         inv_mask = aux
 
     return Masks(mask, inv_mask)
+
+
+def find_fungi(current_image):
+    color_range = MaskMode(low=np.array([0, 0, 0]), high=np.array([5, 5, 5]))
+    mask = cv2.inRange(current_image, color_range.low, color_range.high)
+    if config['morph_transform_mask']:
+        mask = cv2.morphologyEx(mask, *config['morph_transform_mask'])
+    return Masks(mask, cv2.bitwise_not(mask))
+
 
 # Loop principal. Funciona hasta que se aprieta 'q'
 # Se ejecuta todo para cada frame de video.
@@ -162,18 +154,25 @@ while True:
     frame_loaded, frame = cap.read()
     if frame_loaded:
         TIME += 1
-        if TIME % 50 == 0: invert_mode = not invert_mode
-        masks = create_masks(frame, color_mode)
-        if config['show_mask']: cv2.imshow('mask', masks.normal)
+        if fractal_mode == 'fungi':
+            bg_image = get_current_fungi()
+            r = 300
+            n = 100
+            x, y = (math.cos(2*math.pi/n * TIME)*r, math.sin(2*math.pi/n*TIME)*r)
 
-        masked_frame = cv2.bitwise_and(frame, frame, mask=masks.inverted)
+            translation = np.float32([[1, 0, x], [0, 1, y]])
+            bg_image = cv2.warpAffine(bg_image, translation, (FRAME_WIDTH, FRAME_HEIGHT))
+            masks = find_fungi(bg_image)
+            if config['show_mask']: cv2.imshow('mask', masks.normal)
+            masked_bg = cv2.bitwise_and(bg_image, bg_image, mask=masks.inverted)
+            masked_frame = cv2.bitwise_and(frame, frame, mask=masks.normal)
+        else:  # quarf
+            masks = find_quarf(frame, color_mode)
+            if config['show_mask']: cv2.imshow('mask', masks.normal)
+            masked_frame = cv2.bitwise_and(frame, frame, mask=masks.inverted)
+            bg_image = get_current_quarf()
+            masked_bg = cv2.bitwise_and(bg_image, bg_image, mask=masks.normal)
 
-        # Obtengo la imagen fractalica actual y aplico la máscara
-        # (o sea, dejo solo lo que queda dentro)
-        bg_image = get_current_image()
-        masked_bg = cv2.bitwise_and(bg_image, bg_image, mask=masks.normal)
-
-        # Finalmente, sumo las dos imágenes (frame de video + fractalica)
         result = masked_frame + masked_bg
 
         # Muestro los frames de video en sus ventanitas y grabo esos frames en archivos separados.
@@ -189,7 +188,7 @@ while True:
 
 # When everything done, release the capture
 cap.release()
-if background_video is not None: background_video.release()
+
 if config['save_image']: original_out.release()
 if config['save_result']: transformed_out.release()
 
