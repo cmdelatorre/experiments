@@ -3,10 +3,9 @@ import numpy as np
 import cv2
 import os
 import sys
-import math
+import serial
 
 from collections import namedtuple
-
 
 
 MaskMode = namedtuple('MaskMode', ('low', 'high'))
@@ -14,7 +13,7 @@ Masks = namedtuple('Masks', ('normal', 'inverted'))
 
 config = {
     'camera_id': 1,
-    'frame_width': 1920,
+    'frame_width': 1080,
     'frame_height': 1080,
     'show_image': False,
     'show_mask': False,
@@ -90,7 +89,7 @@ class FractalManager(object):
         Return the next fractal corresponding to the given distance
 
         """
-        print('get fractal at distance: %d' % distance)
+        #print('get fractal at distance: %d' % distance)
         if distance <= 0:
             return self.fractals[0]
         i = 0
@@ -155,25 +154,25 @@ if config['show_controls']:
     cv2.createTrackbar('Upper H', 'controls', color_mode.high[0], 179, set_val_factory(color_mode.high, 0))
     cv2.createTrackbar('Upper S', 'controls', color_mode.high[1], 255, set_val_factory(color_mode.high, 1))
     cv2.createTrackbar('Upper V', 'controls', color_mode.high[2], 255, set_val_factory(color_mode.high, 2))
-
-    def switch_toggle(x):
-        global target_distance
-        if x == 0:
-            target_distance = 1
-        elif x == 1:
-            target_distance = 51
-        elif x == 2:
-            target_distance = 101
-        elif x == 3:
-            target_distance = 151
-        elif x == 4:
-            target_distance = 201
-        elif x == 5:
-            target_distance = 251
-
-    # Create switch to mock distance sensor
-    switch = '0 : Quarf\n1 : Green\n2 : Blup\n3 : Mandala\n4 : Fungi'
-    cv2.createTrackbar(switch, 'controls',  0, 5, switch_toggle)
+    # #
+    # def switch_toggle(x):
+    #     global target_distance
+    #     if x == 0:
+    #         target_distance = 1
+    #     elif x == 1:
+    #         target_distance = 51
+    #     elif x == 2:
+    #         target_distance = 101
+    #     elif x == 3:
+    #         target_distance = 151
+    #     elif x == 4:
+    #         target_distance = 201
+    #     elif x == 5:
+    #         target_distance = 251
+    #
+    # # Create switch to mock distance sensor
+    # switch = '0 : Quarf\n1 : Green\n2 : Blup\n3 : Mandala\n4 : Fungi'
+    # cv2.createTrackbar(switch, 'controls',  0, 5, switch_toggle)
 
 
 def mask_by_color(source_frame, color_mode):
@@ -195,13 +194,22 @@ def mask_by_color(source_frame, color_mode):
 
 # Loop principal. Funciona hasta que se aprieta 'q'
 # Se ejecuta todo para cada frame de video.
+
+arduino = serial.Serial('/dev/ttyACM0', 9600)
+#import re
 while True:
     # Acá capturo un frame de video.
     frame_loaded, frame = cap.read()
     if frame_loaded:
         TIME += 1
-        # distance = xxx  # Read from Arduino
+
+        data = arduino.readline()
+        new_distance = int(data)
+        print(new_distance)
+        if new_distance > 0:
+            target_distance = new_distance
         fractal = fractals.get_current_by(target_distance)
+
         bg_image = fractal.next_image()
 
         if fractal.mode == 'mask':
