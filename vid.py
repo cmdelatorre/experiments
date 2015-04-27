@@ -13,12 +13,12 @@ Masks = namedtuple('Masks', ('normal', 'inverted'))
 
 config = {
     'camera_id': 1,
-    'frame_width': 1080,
+    'frame_width': 800,
     'frame_height': 1080,
     'show_image': False,
     'show_mask': False,
     'show_result': True,
-    'show_controls': True,
+    'show_controls': False,
     'save_image': False,
     'save_result': False,
     'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
@@ -111,6 +111,7 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['frame_height'])
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['frame_width'])
 FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+
 print(FRAME_HEIGHT, FRAME_WIDTH)
 
 # Global variable that will accum with each video frame.
@@ -205,7 +206,7 @@ while True:
 
         data = arduino.readline()
         new_distance = int(data)
-        print(new_distance)
+        #print(new_distance)
         if new_distance > 0:
             target_distance = new_distance
         fractal = fractals.get_current_by(target_distance)
