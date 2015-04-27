@@ -8,6 +8,24 @@ import math
 from collections import namedtuple
 
 
+
+MaskMode = namedtuple('MaskMode', ('low', 'high'))
+Masks = namedtuple('Masks', ('normal', 'inverted'))
+
+config = {
+    'camera_id': 1,
+    'frame_width': 1920,
+    'frame_height': 1080,
+    'show_image': False,
+    'show_mask': False,
+    'show_result': True,
+    'show_controls': True,
+    'save_image': False,
+    'save_result': False,
+    'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
+}
+
+
 class Fractal(object):
     """
     mode is 'mask' when it should appear within a mask. 'floating' is when it
@@ -29,13 +47,13 @@ class Fractal(object):
         self.current_image = None
 
     def load(self):
-        print('loading ' + self.data_src)
+        #print('loading ' + self.data_src)
         for image_fname in os.listdir(self.data_src):
             fname = os.path.join(self.data_src, image_fname)
             _, file_extension = os.path.splitext(fname)
             if file_extension.lower() in ['.jpg', '.png']:
                 bg_image = cv2.imread(fname)
-                print('\tloading: ' + image_fname)
+                #print('\tloading: ' + image_fname)
                 self.images.append(cv2.resize(bg_image, (self.width, self.height)))
         self.current_image = self.images[0]
         return self
@@ -85,23 +103,6 @@ class FractalManager(object):
             return self.fractals[i]
 
 
-
-MaskMode = namedtuple('MaskMode', ('low', 'high'))
-Masks = namedtuple('Masks', ('normal', 'inverted'))
-
-config = {
-    'camera_id': 1,
-    'frame_width': 1920,
-    'frame_height': 1080,
-    'show_image': False,
-    'show_mask': False,
-    'show_result': True,
-    'show_controls': True,
-    'save_image': False,
-    'save_result': False,
-    'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
-}
-
 source = config['camera_id']
 if len(sys.argv) > 1:
     source = sys.argv[1]
@@ -134,7 +135,7 @@ if config['save_result']:
 
 
 # Estas variables de acá definen el rango actual en cada momento.
-color_mode = MaskMode(low=np.array([38, 0, 0]), high=np.array([82, 255, 255]))
+color_mode = MaskMode(low=np.array([16, 0, 149]), high=np.array([36, 63, 255]))
 target_distance = 0  #Will be updated by the Arduino sensors
 
 if config['show_controls']:
@@ -184,11 +185,11 @@ def mask_by_color(source_frame, color_mode):
     if morph:
         mask = cv2.morphologyEx(mask, *morph)
 
-    x = int(200 + TIME*10) % 1500
-    y = 400 + int(400*math.sin(TIME/100.0))
-    center = (x, y)
-    radius = int(math.fabs(250*math.sin(TIME/100.0)))+1
-    cv2.circle(mask, center, radius, np.ones(3)*255, -1)
+    # x = int(200 + TIME*10) % 1500
+    # y = 400 + int(400*math.sin(TIME/100.0))
+    # center = (x, y)
+    # radius = int(math.fabs(250*math.sin(TIME/100.0)))+1
+    # cv2.circle(mask, center, radius, np.ones(3)*255, -1)
     inv_mask = cv2.bitwise_not(mask)
     return Masks(mask, inv_mask)
 
