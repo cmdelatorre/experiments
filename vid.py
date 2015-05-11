@@ -4,6 +4,7 @@ import cv2
 import os
 import sys
 import serial
+import socket
 
 from collections import namedtuple
 
@@ -13,15 +14,22 @@ Masks = namedtuple('Masks', ('normal', 'inverted'))
 
 config = {
     'camera_id': 1,
-    'frame_width': 800,
-    'frame_height': 1080,
+    'frame_width': 1366,
+    'frame_height': 768,
     'show_image': False,
     'show_mask': False,
     'show_result': True,
-    'show_controls': False,
+    'show_controls': True,
     'save_image': False,
     'save_result': False,
     'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
+    'arduino_connection': 'ethernet',  # 'serial'
+    'arduino_connection_configuration': {
+        # 'dev': '/dev/ttyACM0',
+        # 'baud': 9600,
+        'UDP_IP': "192.168.2.100",
+        'UDP_PORT': 8888
+    },
 }
 
 
@@ -118,11 +126,11 @@ print(FRAME_HEIGHT, FRAME_WIDTH)
 TIME = 0
 
 fractals = FractalManager()
-fractals.register('mask', 50, 'data/quarf/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 100, 'data/green/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 150, 'data/blup/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 200, 'data/mandal/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 250, 'data/fungi/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('mask', 40, 'data/quarf/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 80, 'data/green/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 120, 'data/blup/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 160, 'data/mandal/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 200, 'data/fungi/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
 
 
 # Esto es para grabar los dos videos (original y tocado)
@@ -193,20 +201,38 @@ def mask_by_color(source_frame, color_mode):
     inv_mask = cv2.bitwise_not(mask)
     return Masks(mask, inv_mask)
 
+
+
+def get_arduino_data_from_ethernet():
+    data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
+    return int(data)
+
+if config['arduino_connection'] == 'serial':
+    arduino = serial.Serial(config['arduino_connection_configuration']['dev'],
+                            config['arduino_connection_configuration']['baud'])
+    def get_arduino_data_from_serial():
+        data = arduino.readline()
+        return int(data)
+    get_arduino_data = get_arduino_data_from_serial
+elif config['arduino_connection'] == 'ethernet':
+    UDP_IP = config['arduino_connection_configuration']['UDP_IP']
+    UDP_PORT = config['arduino_connection_configuration']['UDP_PORT']
+    sock = socket.socket(socket.AF_INET, # Internet
+                         socket.SOCK_DGRAM) # UDP
+    sock.bind((UDP_IP, UDP_PORT))
+    get_arduino_data = get_arduino_data_from_ethernet
+
 # Loop principal. Funciona hasta que se aprieta 'q'
 # Se ejecuta todo para cada frame de video.
-
-arduino = serial.Serial('/dev/ttyACM0', 9600)
-#import re
 while True:
     # Acá capturo un frame de video.
     frame_loaded, frame = cap.read()
     if frame_loaded:
         TIME += 1
 
-        data = arduino.readline()
-        new_distance = int(data)
-        #print(new_distance)
+        new_distance = get_arduino_data()
+        print(new_distance)
+
         if new_distance > 0:
             target_distance = new_distance
         fractal = fractals.get_current_by(target_distance)
