@@ -4,13 +4,14 @@
 
 import cv2, sys
 
-source = 1
+source = 2
 cap = cv2.VideoCapture(source)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-sys.stderr.write("{0}, {1}".format(FRAME_WIDTH, FRAME_HEIGHT))
+
+#sys.stderr.write("{0}, {1}".format(FRAME_WIDTH, FRAME_HEIGHT))
 
 while True:
     frame_loaded, frame = cap.read()
