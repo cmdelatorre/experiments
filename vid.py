@@ -14,21 +14,22 @@ Masks = namedtuple('Masks', ('normal', 'inverted'))
 
 config = {
     'camera_id': 1,
-    'frame_width': 1366,
-    'frame_height': 768,
-    'show_image': False,
+    'frame_width': 1280,
+    'frame_height': 720,
+    'stdout': False,
+    'show_image': True,
     'show_mask': False,
     'show_result': True,
-    'show_controls': True,
-    'save_image': False,
-    'save_result': False,
+    'show_controls': False,
+    'save_image': True,
+    'save_result': True,
     'morph_transform_mask': (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)),
-    'arduino_connection': 'ethernet',  # 'serial'
+    'arduino_connection': 'serial',  #'ethernet',
     'arduino_connection_configuration': {
-        # 'dev': '/dev/ttyACM0',
-        # 'baud': 9600,
-        'UDP_IP': "192.168.2.100",
-        'UDP_PORT': 8888
+        'dev': '/dev/ttyACM0',
+        'baud': 9600,
+        #'UDP_IP': "192.168.2.100",
+        #'UDP_PORT': 8888
     },
 }
 
@@ -127,10 +128,10 @@ TIME = 0
 
 fractals = FractalManager()
 fractals.register('mask', 40, 'data/quarf/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 80, 'data/green/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 120, 'data/blup/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 160, 'data/mandal/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
-fractals.register('floating', 200, 'data/fungi/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 70, 'data/green/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 100, 'data/blup/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 130, 'data/mandal/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
+fractals.register('floating', 160, 'data/fungi/', height=FRAME_HEIGHT, width=FRAME_WIDTH)
 
 
 # Esto es para grabar los dos videos (original y tocado)
@@ -143,7 +144,7 @@ if config['save_result']:
 
 
 # Estas variables de acá definen el rango actual en cada momento.
-color_mode = MaskMode(low=np.array([16, 0, 149]), high=np.array([36, 63, 255]))
+color_mode = MaskMode(low=np.array([0, 0, 69]), high=np.array([129, 118, 255]))
 target_distance = 0  #Will be updated by the Arduino sensors
 
 if config['show_controls']:
@@ -211,8 +212,12 @@ if config['arduino_connection'] == 'serial':
     arduino = serial.Serial(config['arduino_connection_configuration']['dev'],
                             config['arduino_connection_configuration']['baud'])
     def get_arduino_data_from_serial():
-        data = arduino.readline()
-        return int(data)
+        data = 0
+        try:
+            data = int(arduino.readline())
+        except:
+            pass
+        return data
     get_arduino_data = get_arduino_data_from_serial
 elif config['arduino_connection'] == 'ethernet':
     UDP_IP = config['arduino_connection_configuration']['UDP_IP']
@@ -222,8 +227,12 @@ elif config['arduino_connection'] == 'ethernet':
     sock.bind((UDP_IP, UDP_PORT))
     get_arduino_data = get_arduino_data_from_ethernet
 
+
 # Loop principal. Funciona hasta que se aprieta 'q'
 # Se ejecuta todo para cada frame de video.
+if config['show_image']:
+    cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+
 while True:
     # Acá capturo un frame de video.
     frame_loaded, frame = cap.read()
@@ -231,10 +240,10 @@ while True:
         TIME += 1
 
         new_distance = get_arduino_data()
-        print(new_distance)
 
         if new_distance > 0:
             target_distance = new_distance
+        #print(target_distance)
         fractal = fractals.get_current_by(target_distance)
 
         bg_image = fractal.next_image()
@@ -257,6 +266,8 @@ while True:
         if config['show_result']: cv2.imshow('transformed', result)
         if config['save_image']: original_out.write(frame)
         if config['save_result']: transformed_out.write(result)
+
+        if config['stdout']: sys.stdout.write(result.tostring())
 
         # Si se aprieta 'q' sale del loop
         if cv2.waitKey(10) & 0xFF == ord('q'):
