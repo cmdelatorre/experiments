@@ -3,24 +3,27 @@ import sys
 
 import settings
 
-from fractal_manager import DirectoryGallery, FractalManager
+from fractal_manager import FractalManager
 
 
 def main(*args):
-    manager = FractalManager()
-    for fractal_conf in settings.FRACTALS_CONFIG:
-        manager.register(fractal_conf)
-
     # Input setup
     source = settings.CAMERA_ID
     if len(args) > 1:
         source = args[1]
-
     cap = cv2.VideoCapture(source)
+    # Try to set the camera frame size with the exisitng settings but as it
+    # doesn't work equally for all cameras, record the resulting frame size
+    # parameters
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.FRAME_HEIGHT)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.FRAME_WIDTH)
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+
+    manager = FractalManager(sensor=settings.SENSOR)
+    for fractal_conf in settings.FRACTALS_CONFIG:
+        fractal_conf += (height, width)
+        manager.register(*fractal_conf)
 
     original_out = None
     if settings.SAVE_IMAGE:
@@ -42,7 +45,7 @@ def main(*args):
         if frame_loaded:
             time += 1
 
-        fractal = manager.get_gallery()
+        fractal = manager.get_current()
         result = fractal.merge(frame)
 
         if settings.SHOW_IMAGE:
