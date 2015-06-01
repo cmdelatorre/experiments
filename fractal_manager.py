@@ -116,23 +116,6 @@ def sorted_index(arr, item, delta=0):
     return pos + delta
 
 
-# The Sensor class abstracts a data-input mechanism. Currently, the
-# DistanceSensor reads data from the Serial port where an Arduino board sends
-# distance data.
-class DistanceSensor(object):
-    def __init__(self, device, baud):
-        self.arduino = serial.Serial(device, baud)
-
-    def get_data(self):
-        data = None
-        try:
-            # TODO: Improve this: read the last measure sent.
-            data = int(self.arduino.readline())
-        except:
-            pass
-        return data
-
-
 # A FractalManager registers FractalGallery instances and implements a policy to
 # decide which Fractal to return when get_current() is called.
 # By sub-classing the FractalManager class, different fractal-selection
@@ -154,7 +137,7 @@ class FractalManager(object):
         fractal.set_dimensions(height=height, width=width)
         fractal.load()
         pos = sorted_index(self.distances, distance)
-        if self.distances[pos] == distance:
+        if pos < len(self.distances) and self.distances[pos] == distance:
             raise Exception("There's another fractal at distance %d" % distance)
         self.fractals.insert(pos, fractal)
         self.distances.insert(pos, distance)
@@ -166,5 +149,8 @@ class FractalManager(object):
         distance = self.sensor.get_data()
         if distance:
             target = sorted_index(self.distances, distance)
-            self.current_fractal = self.fractals[target]
+            if target < len(self.fractals):
+                self.current_fractal = self.fractals[target]
+            else:  # the distance is higher than the upper limit
+                self.current_fractal = self.fractals[-1]
         return self.current_fractal
