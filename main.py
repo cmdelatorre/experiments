@@ -22,8 +22,8 @@ def main(*args):
 
     manager = FractalManager(sensor=settings.SENSOR)
     for fractal_conf in settings.FRACTALS_CONFIG:
-        fractal_conf += (height, width)
-        manager.register(*fractal_conf)
+        fractal_conf.update({'height': height, 'width': width})
+        manager.register(**fractal_conf)
 
     original_out = None
     if settings.SAVE_IMAGE:
