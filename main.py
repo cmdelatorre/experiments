@@ -12,7 +12,7 @@ def main(*args):
     if len(args) > 1:
         source = args[1]
     cap = cv2.VideoCapture(source)
-    # Try to set the camera frame size with the exisitng settings but as it
+    # Try to set the camera frame size with the existing settings but as it
     # doesn't work equally for all cameras, record the resulting frame size
     # parameters
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.FRAME_HEIGHT)
