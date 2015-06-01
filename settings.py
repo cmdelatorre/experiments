@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 
-from fractal_manager import FractalsDirectory, BlendModes, DistanceSensor
+from fractal_manager import FractalsDirectory, BlendModes
+from sensors import DistanceSensor, TestSensor
 
 
 # Camera ID, in case there are many cameras available.
@@ -49,8 +50,8 @@ FRACTALS_CONFIG = [
      'fractal': FractalsDirectory(data_src='data/quarf/',
                                   mode=BlendModes.MASK,
                                   filter_conf=FILTER_CONFIGURATION,
-                                  color_low=None,
-                                  color_high=None)},
+                                  color_low=np.array([0, 0, 69]),
+                                  color_high=np.array([129, 118, 255]))},
     {'distance': 70,
      'fractal': FractalsDirectory(data_src='data/green/',
                                   mode=BlendModes.OVERLAY)},
@@ -70,5 +71,6 @@ SENSOR_CONFIGURATION = {
     'device': '/dev/ttyACM0',
     'baud': 9600,
 }
-SENSOR = DistanceSensor(device=SENSOR_CONFIGURATION['device'],
-                        baud=SENSOR_CONFIGURATION['baud'])
+#SENSOR = DistanceSensor(device=SENSOR_CONFIGURATION['device'],
+#                        baud=SENSOR_CONFIGURATION['baud'])
+SENSOR = TestSensor(0, 200)
