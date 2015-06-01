@@ -1,3 +1,9 @@
+import cv2
+import numpy as np
+
+from fractal_manager import FractalsDirectory, BlendModes, DistanceSensor
+
+
 # Camera ID, in case there are many cameras available.
 CAMERA_ID = 1
 
@@ -36,19 +42,33 @@ SAVE_RESULT_FILENAME = 'fractalized.avi'
 
 # The FractalManager (sub-class of GalleriesManager) selects a fractal based on
 # a distance value. Each fractal activates at its configured distance (cm).
+
+FILTER_CONFIGURATION = (cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
 FRACTALS_CONFIG = [
-    ('data/quarf/', 40, 'mask'),
-    ('data/green/', 70, 'floating'),
-    ('data/blup/', 100, 'floating'),
-    ('data/mandal/', 130, 'floating'),
-    ('data/fungi/', 160, 'floating'),
+    {'distance': 40,
+     'fractal': FractalsDirectory(data_src='data/quarf/',
+                                  mode=BlendModes.MASK,
+                                  filter_conf=FILTER_CONFIGURATION,
+                                  color_low=None,
+                                  color_high=None)},
+    {'distance': 70,
+     'fractal': FractalsDirectory(data_src='data/green/',
+                                  mode=BlendModes.OVERLAY)},
+    {'distance': 100,
+     'fractal': FractalsDirectory(data_src='data/blup/',
+                                  mode=BlendModes.OVERLAY)},
+    {'distance': 130,
+     'fractal': FractalsDirectory(data_src='data/mandal/',
+                                  mode=BlendModes.OVERLAY)},
+    {'distance': 160,
+     'fractal': FractalsDirectory(data_src='data/fungi/',
+                                  mode=BlendModes.OVERLAY)},
 ]
 
-MORPH_TRANSFORM_MASK = (cv2.MORPH_CLOSE np.ones((5 5) np.uint8))
-ARDUINO_CONNECTION = 'serial' #'ethernet'
-ARDUINO_CONNECTION_CONFIGURATION = {
-  'dev': '/dev/ttyACM0'
-  'baud': 9600
-  #'UDP_IP': "192.168.2.100"
-  #'UDP_PORT': 8888
+# Parameters to connect with the Arduino board, using the serial port.
+SENSOR_CONFIGURATION = {
+    'device': '/dev/ttyACM0',
+    'baud': 9600,
 }
+SENSOR = DistanceSensor(device=SENSOR_CONFIGURATION['device'],
+                        baud=SENSOR_CONFIGURATION['baud'])
